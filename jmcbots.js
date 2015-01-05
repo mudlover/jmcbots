@@ -1,6 +1,4 @@
 var JmcBotsConfig = {
-  // Directory where this lib is located, relative to jmc.exe dir
-  libPath: "settings\\jmcbots",
   // Directory where runtime files will be created, relative to jmc.exe dir
   // Should exist and be writable
   runPath: "run"
@@ -8,7 +6,7 @@ var JmcBotsConfig = {
 
 if (typeof JmcBots !== "object") {
     JmcBots = {
-      MODE: {
+      ROLE: {
         MASTER: 1,
         SLAVE: 2
       }
@@ -20,7 +18,13 @@ if (typeof JmcBots !== "object") {
   // ------ <Init>
 
   var fso = null,
-    initialized = false;
+    inTell = false,
+    initialized = false,
+    botNum = 0,
+    botRole = -1,
+    botName = "",
+    aliveName = "",
+    aliveFile = "";
 
   fso = new ActiveXObject("Scripting.FileSystemObject");
 
@@ -28,23 +32,64 @@ if (typeof JmcBots !== "object") {
 
   // Private functions 
 
-  function include(filename) {
-    var stream = null,
-      file = "";
+  function getRandomInt(min, max) {
+    return Math.floor(Math.random() * (max - min + 1)) + min;
+  }
 
-    stream = fso.OpenTextFile(filename, 1 /* ForReading */);
-    if (!stream) {
+  function register(num, role) {
+    var aliveFileCreationTriesLeft = 0;
+
+    if (num < 0) {
+      tell("Num is less then 0: " + num);
+      return false;
+    }
+    botNum = num;
+
+    if (role != JmcBots.ROLE.MASTER && role != JmcBots.ROLE.SLAVE) {
+      tell("Role doesn't belong to JmcBots.ROLE set:  " + role);
+      return false;
+    }
+    botRole = role;
+
+    if (!fso.FolderExists(JmcBotsConfig.runPath)) {
+      tell("JmcBots run directory doesn't exist: " + JmcBotsConfig.runPath);
       return false;
     }
 
-    file = stream.ReadAll();
-    stream.close();
+    for (aliveFileCreationTriesLeft = 5; aliveFileCreationTriesLeft > 0; aliveFileCreationTriesLeft -= 1) {
+      botName = jmc.Profile + "-" + botNum + "-" + getRandomInt(10, 99);
+      aliveName = fso.GetAbsolutePathName(JmcBotsConfig.runPath + "\\" + botName + ".alive?");
 
-    if (!file) {
-      return;
+      try {
+        aliveFile = fso.OpenTextFile(aliveName, 2 /* ForWriting */, true /* iocreate */);
+        } catch(e) {
+        tell("Couldn't create alive file: " + aliveName + " (msg: " + e.message + ", errno: " + e.number + ")");
+      }
+      if (aliveFile) {
+        break;
+      }
+      tell("Couldn't create alive file " + aliveName);
     }
 
-    jmc.Eval(file);
+    if (aliveFileCreationTriesLeft < 1) {
+      tell("Couldn't create alive file, giving up");
+      return false;
+    }
+    // Write mode,num there
+
+    findOtherBots();
+    initialized = true;
+    return true;
+  }
+
+  function findOtherBots() {
+    // List directory and find "*.alive"
+    // Try to open handle for writing, do not create new
+    //   if opened - close and delete alive and cmdlock and TELL
+    //   if failed - good handle, open for reading, save data and TELL
+    //   check if I am a master and somebody else is also a master
+    //   check if master and save it to master pointer
+    // Handle list struct: { num: [handle1, handle2], ... }
   }
 
   function processCommandFile() {
@@ -70,28 +115,6 @@ if (typeof JmcBots !== "object") {
       //   Parse    
   }
 
-  function findOtherBots() {
-    // List directory and find "*.alive"
-    // Try to open handle for writing, do not create new
-    //   if opened - close and delete alive and cmdlock and TELL
-    //   if failed - good handle, open for reading, save data and TELL
-    //   check if I am a master and somebody else is also a master
-    //   check if master and save it to master pointer
-    // Handle list struct: { num: [handle1, handle2], ... }
-  }
-
-  function register(num, mode) {
-    // Save mode internally
-    // findOtherBots();
-    // Create own name (jmc.Profile-num-Random.alive)
-    // Open own alivefile 
-    //   - if failed, generate new own name
-    // Write mode,num there
-    // Send all others NEW_BOT message
-    // Set initialized flag
-    initialized = true;
-  }
-
   function cmd(botNum, cmd) {
     // foreach handle in handles[botNum]:
     //   - try to open their lockfile for writing
@@ -109,9 +132,19 @@ if (typeof JmcBots !== "object") {
     //   - cmd(botNum, cmd)
   }
 
-  function tell(msg) {
-    // showme msg
-    // cmdAll(showme my num:msg (handle))
+  function tell(msg, finalTell) {
+    jmc.ShowMe(msg);
+    if (inTell) {
+      // Circuit breaker in case something goes wrong in cmdAll and it will call tell again
+      if (!finalTell) {
+        tell("Note: breaking circuit by inTell", true);
+      }
+      inTell = false;
+      return;
+    }
+    inTell = true;
+    cmdAll("#showme " + botNum + ":" + msg + " (" + botName + ")");
+    inTell = false;
   }
 
   function onInput(input) {
@@ -141,10 +174,20 @@ if (typeof JmcBots !== "object") {
     processCommandFile();
   }
 
-  function onDestroy() {
-    // Remove timers
-    // Close alivefile
-    // Delete alivefile
+  function onUnload() {
+    if (aliveFile) {
+      try {
+        aliveFile.close();
+      } catch(e) {
+        tell("Couldn't close alive file: " + aliveName + " (msg: " + e.message + ", errno: " + e.number + ")");
+      }
+
+      try {
+        rc = fso.DeleteFile(aliveName);
+      } catch(e) {
+        tell("Couldn't delete alive file: " + aliveName + " (msg: " + e.message + ", errno: " + e.number + ")");
+      }
+    }
   }
 
   // TODO: Check dead handle mechanics
@@ -157,6 +200,6 @@ if (typeof JmcBots !== "object") {
   JmcBots.tell = tell;
   JmcBots.onInput = onInput;
   JmcBots.onTimer = onTimer;
-  JmcBots.onDestroy = onDestroy;
+  JmcBots.onUnload = onUnload;
 
 }());
