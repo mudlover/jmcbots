@@ -17,7 +17,8 @@ if (typeof JmcBots !== "object") {
 
   // ------ <Init>
 
-  var fso = null,
+  var trimRegex = /^[\s\uFEFF\xA0]+|[\s\uFEFF\xA0]+$/g,
+    fso = null,
     runPathAbsolute = '',
     inTell = false,
     initialized = false,
@@ -29,7 +30,8 @@ if (typeof JmcBots !== "object") {
     aliveFile = "",
     botsList = "",
     masterNum = -1,
-    masterName = '';
+    masterName = '',
+    lastProcessedTime = 0;
 
   fso = new ActiveXObject("Scripting.FileSystemObject");
   runPathAbsolute = fso.GetAbsolutePathName(JmcBotsConfig.runPath);
@@ -95,12 +97,12 @@ if (typeof JmcBots !== "object") {
       return false;
     }
 
-    findOtherBots();
+    discoverBots();
     initialized = true;
     return true;
   }
 
-  function findOtherBots() {
+  function discoverBots() {
     var newBotsList = [],
       runDir = null,
       goodFile = false,
@@ -145,7 +147,7 @@ if (typeof JmcBots !== "object") {
       }
 
       if (!goodFile) {
-        jmc.ShowMe("Removing left over alive and cmd files: " + fileObj.Path);
+        tell("Removing left over alive and cmd files: " + fileObj.Path);
         try {
           file.close();
           fso.DeleteFile(fileObj.Path);
@@ -175,10 +177,9 @@ if (typeof JmcBots !== "object") {
       if (JmcBots.ROLE.MASTER === parseInt(botData[2])) {
         if (meIsMaster) {
           // tell("Found another master bot, I am " + myName + ", he is " + botData[0]);
-        } else {
-          masterNum = botData[1];
-          masterName = botData[0];
-        }
+        } 
+        masterNum = botData[1];
+        masterName = botData[0];
       }
 
       botNum = botData[1];
@@ -211,33 +212,81 @@ if (typeof JmcBots !== "object") {
     // }
 
     if (newBotsList.length > botsList.length) {
-      tell("Found new bots: " + (newBotsList.length - botsList.length));
+      tell("Found new bots");
     } else if (newBotsList.length < botsList.length) { 
-      tell("Lost bots: " + (botsList.length - newBotsList.length));
+      tell("Lost bots");
     }
     
     botsList = newBotsList;
   }
 
   function processCommandFile() {
-    // Open cmdlock for writing
-    //   - if failed - TELL, quit and wait for next tick
-    // Open cmdfile for reading
-    // Read all strings from cmdfile
-    // Close cmdfile
-    // Close cmdlock
-    // Tell/report to master if more than 1 strings found 
-    // Process all strings:
-    // Calculate time from last successfull process, TELL it
-    // Warn if too much time passed from the last time
-    // Save current time as last successful
+    var cmdFileName = "",
+      cmdLockName = "",
+      cmdFile = null,
+      cmdLockFile = null,
+      commandsStr = "",
+      commands = "",
+      command = "", 
+      start = 0,
+      finish = 0,
+      processingDuration = 0,
+      processToProcessTime = 0;
+
+    start = new Date().getTime();
+
+    cmdLockFileName = runPathAbsolute + "\\" + myName + ".cmdlock"; 
+    try {
+      cmdLockFile = fso.OpenTextFile(cmdLockFileName, 2 /* ForWriting */, true /* iocreate */);
+    } catch(e) {
+      tell("Caught exception while opening my cmdlock: " + cmdLockFileName + " (msg: " + e.message + ", errno: " + e.number + ")");
+      return;
+    }
+
+    cmdFileName = runPathAbsolute + "\\" + myName + ".cmdfile"; 
+    jmc.ShowMe(cmdFileName);
+    try {
+      cmdFile = fso.OpenTextFile(cmdFileName, 1 /* ForReading */, true /* iocreate */);
+      if (!cmdFile.AtEndOfStream) {
+        commandsStr = cmdFile.ReadAll();
+      }
+    } catch(e) {
+      tell("Caught exception while reading my cmdfile: " + cmdFileName + " (msg: " + e.message + ", errno: " + e.number + ")");
+      return;
+    } finally {
+      cmdFile.close();
+      fso.DeleteFile(cmdFileName);
+      cmdLockFile.close();      
+    }
+
+    if (commandsStr.length) {
+      commandsStr = commandsStr.replace(trimRegex, '');
+      commands = commandsStr.split("\n");
+      if (commands.length > 1) {
+        tell("Read more than one command: " + commands.length);
+      }
+
+      var i, k = commands.length;
+      for (i = 0; i < k; i++) {
+        tell("Cmd: " + commands[i]);
+        processCommand(commands[i]);
+      }
+    }
+
+    finish = new Date().getTime();
+    processingDuration = finish - start;
+    processToProcessTime = finish - lastProcessedTime;
+    // <if too much time passed>
+    jmc.SetStatus(5, commands.length + "c/" + processingDuration + "ms/" + processToProcessTime + "ms");
+    // </if>
+    lastProcessedTime = finish;
   }
 
   function processCommand() {
       // split by , to type, text
       // swit
       // NEW_BOT:
-      //   findOtherBots()
+      //   discoverBots()
       // SEND_TO_MUD:
       //   Parse    
   }
@@ -297,7 +346,7 @@ if (typeof JmcBots !== "object") {
       return;
     }
 
-    findOtherBots();
+    discoverBots();
     processCommandFile();
   }
 
@@ -342,6 +391,6 @@ if (typeof JmcBots !== "object") {
   JmcBots.onInput = onInput;
   JmcBots.onTimer = onTimer;
   JmcBots.onUnload = onUnload;
-  ImcBots.status = status;
+  JmcBots.status = status;
 
 }());
