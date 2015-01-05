@@ -18,15 +18,21 @@ if (typeof JmcBots !== "object") {
   // ------ <Init>
 
   var fso = null,
+    runPathAbsolute = '',
     inTell = false,
     initialized = false,
-    botNum = 0,
-    botRole = -1,
-    botName = "",
+    myNum = 0,
+    myRole = -1,
+    myName = "",
+    meIsMaster = false,
     aliveName = "",
-    aliveFile = "";
+    aliveFile = "",
+    botsList = "",
+    masterNum = -1,
+    masterName = '';
 
   fso = new ActiveXObject("Scripting.FileSystemObject");
+  runPathAbsolute = fso.GetAbsolutePathName(JmcBotsConfig.runPath);
 
   // ------- </Init>
 
@@ -44,13 +50,17 @@ if (typeof JmcBots !== "object") {
       tell("Num is less then 0: " + num);
       return false;
     }
-    botNum = num;
+    myNum = num;
 
-    if (role != JmcBots.ROLE.MASTER && role != JmcBots.ROLE.SLAVE) {
+    if (role !== JmcBots.ROLE.MASTER && role !== JmcBots.ROLE.SLAVE) {
       tell("Role doesn't belong to JmcBots.ROLE set:  " + role);
       return false;
     }
-    botRole = role;
+    myRole = role;
+    
+    if (myRole === JmcBots.ROLE.MASTER) {
+      meIsMaster = true;
+    }
 
     if (!fso.FolderExists(JmcBotsConfig.runPath)) {
       tell("JmcBots run directory doesn't exist: " + JmcBotsConfig.runPath);
@@ -58,8 +68,8 @@ if (typeof JmcBots !== "object") {
     }
 
     for (aliveFileCreationTriesLeft = 5; aliveFileCreationTriesLeft > 0; aliveFileCreationTriesLeft -= 1) {
-      botName = jmc.Profile + "-" + botNum + "-" + getRandomInt(10, 99);
-      aliveName = fso.GetAbsolutePathName(JmcBotsConfig.runPath + "\\" + botName + ".alive");
+      myName = jmc.Profile + "-" + myNum + "-" + getRandomInt(10, 99);
+      aliveName = fso.GetAbsolutePathName(JmcBotsConfig.runPath + "\\" + myName + ".alive");
 
       try {
         aliveFile = fso.OpenTextFile(aliveName, 2 /* ForWriting */, true /* iocreate */);
@@ -77,9 +87,9 @@ if (typeof JmcBots !== "object") {
       return false;
     }
 
-    aliveContent = botName + "," + botNum + "," + botRole;  
+    aliveContent = myName + "," + myNum + "," + myRole;  
     try {
-      aliveFile.WriteLine();
+      aliveFile.WriteLine(aliveContent);
     } catch(e) {
       tell("Couldn't write info '" + aliveContent + "' to alive file: " + aliveName + " (msg: " + e.message + ", errno: " + e.number + ")");
       return false;
@@ -91,13 +101,122 @@ if (typeof JmcBots !== "object") {
   }
 
   function findOtherBots() {
-    // List directory and find "*.alive"
-    // Try to open handle for writing, do not create new
-    //   if opened - close and delete alive and cmdlock and TELL
-    //   if failed - good handle, open for reading, save data and TELL
-    //   check if I am a master and somebody else is also a master
-    //   check if master and save it to master pointer
-    // Handle list struct: { num: [handle1, handle2], ... }
+    var newBotsList = [],
+      runDir = null,
+      goodFile = false,
+      fileEnum = null,
+      fileObj = null,
+      file = null,
+      botDataStr = '';
+      botData = [],
+      botNum = -1;
+
+    try {
+      runDir = fso.getFolder(runPathAbsolute);
+    } catch (e) {
+      tell("Couldn't get run dir from fso: " + runPathAbsolute + " (msg: " + e.message + ", errno: " + e.number + ")");
+    }
+
+    fileEnum = new Enumerator(runDir.Files);
+    for (; !fileEnum.atEnd(); fileEnum.moveNext()) {
+      fileObj = fileEnum.item();
+
+      if (fileObj.Name.substring(fileObj.Name.length - 6) !== ".alive") {
+        continue;
+      }
+      if (aliveName === fileObj.Path) {
+        continue;
+      }
+
+      // If we can open this file for writing - it means
+      // no one else is already has it open. Since active bot
+      // always holds this file open exclusively, this file
+      // must have been left over from some dead bot
+      // and thus is bad. To cleanup we delete it. 
+      goodFile = false;
+      try {
+        file = fso.OpenTextFile(fileObj.Path, 2 /* ForWriting */, false /* iocreate */);
+      } catch(e) {
+        if (e.number === -2146828218) {
+          goodFile = true;
+        } else {
+          tell("Caught exception while opening other bot's alive file for writing: " + fileObj.Path + " (msg: " + e.message + ", errno: " + e.number + ")");
+        }
+      }
+
+      if (!goodFile) {
+        jmc.ShowMe("Removing left over alive and cmd files: " + fileObj.Path);
+        try {
+          file.close();
+          fso.DeleteFile(fileObj.Path);
+          fso.DeleteFile(fileObj.Path.substring(0, fileObj.Path.length - 6) + ".cmdlock");
+          fso.DeleteFile(fileObj.Path.substring(0, fileObj.Path.length - 6) + ".cmdfile");
+        } catch(e) {
+          // Hands in the air
+        }
+        continue;
+      }
+
+      try {
+        file = fso.OpenTextFile(fileObj.Path, 1 /* ForWriting */, false /* iocreate */);
+        botDataStr = file.readLine();
+        file.close();
+      } catch(e) {
+        tell("Caught exception while getting data from other bot's alive file: " + fileObj.Path + " (msg: " + e.message + ", errno: " + e.number + ")");
+        continue;
+      }
+
+      botData = botDataStr.split(",");
+      if (botData.length < 3) {
+        tell("Bot data is too short: " + botDataStr);        
+        continue;
+      }
+
+      if (JmcBots.ROLE.MASTER === parseInt(botData[2])) {
+        if (meIsMaster) {
+          // tell("Found another master bot, I am " + myName + ", he is " + botData[0]);
+        } else {
+          masterNum = botData[1];
+          masterName = botData[0];
+        }
+      }
+
+      botNum = botData[1];
+      if (!newBotsList[botNum]) {
+        newBotsList[botNum] = [];
+      }
+
+      newBotsList[botNum].push(botData);
+    }
+
+    // for (i = 0, k = newBotsList.length; i < k; i++) {
+    //   if (!newBotsList[i]) {
+    //     continue;
+    //   }
+    //   if (!botsList[i]) {
+    //     for (ii = 0, kk = newBotsList[i].length; ii < kk; ii++) {
+    //       tell("Found bot: " + newBotsList[i][ii].join(", "));
+    //       if (JmcBots.ROLE.MASTER === parseInt(newBotsList[i][ii][2])) {
+    //         if (meIsMaster) {
+    //           tell("He is also a master like me, " + myName + "!");
+    //         } else {
+    //           masterNum = newBotsList[i][ii][1];
+    //           masterName = newBotsList[i][ii][0];
+    //         }
+    //       }
+    //     }
+    //   } else {
+    //     for (ii = 0, )
+    //   }
+    // }
+
+    if (newBotsList.length > botsList.length) {
+      tell("Found new bots: " + (newBotsList.length - botsList.length));
+    } else if (newBotsList.length < botsList.length) { 
+      tell("Lost bots: " + (botsList.length - newBotsList.length));
+    }
+    
+    botsList = newBotsList;
   }
 
   function processCommandFile() {
@@ -141,7 +260,7 @@ if (typeof JmcBots !== "object") {
   }
 
   function tell(msg, finalTell) {
-    jmc.ShowMe(msg);
+    jmc.ShowMe("(" + myName + ") " + msg);
     if (inTell) {
       // Circuit breaker in case something goes wrong in cmdAll and it will call tell again
       if (!finalTell) {
@@ -151,7 +270,7 @@ if (typeof JmcBots !== "object") {
       return;
     }
     inTell = true;
-    cmdAll("#showme " + botNum + ":" + msg + " (" + botName + ")");
+    cmdAll("#showme " + myNum + ":" + msg + " (" + myName + ")");
     inTell = false;
   }
 
@@ -197,8 +316,6 @@ if (typeof JmcBots !== "object") {
       }
     }
   }
-
-  // TODO: Check dead handle mechanics
 
   // Public interface
 
