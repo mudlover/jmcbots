@@ -58,7 +58,7 @@ if (typeof JmcBots !== "object") {
 
     for (aliveFileCreationTriesLeft = 5; aliveFileCreationTriesLeft > 0; aliveFileCreationTriesLeft -= 1) {
       botName = jmc.Profile + "-" + botNum + "-" + getRandomInt(10, 99);
-      aliveName = fso.GetAbsolutePathName(JmcBotsConfig.runPath + "\\" + botName + ".alive?");
+      aliveName = fso.GetAbsolutePathName(JmcBotsConfig.runPath + "\\" + botName + ".alive");
 
       try {
         aliveFile = fso.OpenTextFile(aliveName, 2 /* ForWriting */, true /* iocreate */);
