@@ -4,14 +4,12 @@ var JmcBotsConfig = {
   runPath: "run"
 };
 
-if (typeof JmcBots !== "object") {
-    JmcBots = {
-      ROLE: {
-        MASTER: 1,
-        SLAVE: 2
-      }
-    };
-}
+JmcBots = {
+  ROLE: {
+    MASTER: 1,
+    SLAVE: 2
+  }
+};
 
 (function() {
 
@@ -59,7 +57,7 @@ if (typeof JmcBots !== "object") {
     jmc.ShowMe("Info: " + str);
   }
 
-  function register(num, role) {
+  function register(num, role, registerHandlers) {
     var aliveFileCreationTriesLeft = 0,
       aliveContent = '';
 
@@ -123,6 +121,15 @@ if (typeof JmcBots !== "object") {
 
     discoverBots();
     initialized = true;
+
+    if (registerHandlers) {
+      jmc.RegisterHandler("Input", "JmcBots.onInput()");
+      jmc.RegisterHandler("Unload", "JmcBots.onUnload()");
+      jmc.RegisterHandler("Timer", "JmcBots.onTimer()");
+      jmc.RegisterHandler("PreTimer", "JmcBots.onTimer()");
+      jmc.SetTimer(1, 1, 1);
+    }
+
     return true;
   }
 
@@ -430,6 +437,10 @@ if (typeof JmcBots !== "object") {
 
   function onInput(input) {
     var match, botNum;
+
+    if (!input) {
+      input = jmc.Event;
+    }
 
     if (input.substring(0, 4) === "все ") {
       cmdAll(input.substring(4), true /* include self */);
