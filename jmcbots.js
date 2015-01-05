@@ -31,7 +31,10 @@ if (typeof JmcBots !== "object") {
     botsList = "",
     masterNum = -1,
     masterName = '',
-    lastProcessedTime = 0;
+    lastProcessedTime = 0,
+    lastDiscoveryTime = 0,
+    consequentFailuresToLockWhenProcessing = 0;
+    consequentFailuresToEnumDir = 0;
 
   fso = new ActiveXObject("Scripting.FileSystemObject");
   runPathAbsolute = fso.GetAbsolutePathName(JmcBotsConfig.runPath);
@@ -71,10 +74,10 @@ if (typeof JmcBots !== "object") {
 
     for (aliveFileCreationTriesLeft = 5; aliveFileCreationTriesLeft > 0; aliveFileCreationTriesLeft -= 1) {
       myName = jmc.Profile + "-" + myNum + "-" + getRandomInt(10, 99);
-      aliveName = fso.GetAbsolutePathName(JmcBotsConfig.runPath + "\\" + myName + ".alive");
+      aliveName = runPathAbsolute + "\\" + myName + ".alive";
 
       try {
-        aliveFile = fso.OpenTextFile(aliveName, 2 /* ForWriting */, true /* iocreate */);
+        aliveFile = fso.OpenTextFile(aliveName, 2 /* ForWriting */, true /* create */);
       } catch(e) {
         tell("Caught exception while creating alive file, msg: " + e.message + ", errno: " + e.number);
       }
@@ -95,6 +98,13 @@ if (typeof JmcBots !== "object") {
     } catch(e) {
       tell("Couldn't write info '" + aliveContent + "' to alive file: " + aliveName + " (msg: " + e.message + ", errno: " + e.number + ")");
       return false;
+    }  
+
+    try {
+      fso.DeleteFile(runPathAbsolute + "\\" + myName + ".lock");
+      fso.DeleteFile(runPathAbsolute + "\\" + myName + ".commands");
+    } catch(e) {
+      // Hands in the air
     }
 
     discoverBots();
@@ -121,7 +131,15 @@ if (typeof JmcBots !== "object") {
 
     fileEnum = new Enumerator(runDir.Files);
     for (; !fileEnum.atEnd(); fileEnum.moveNext()) {
-      fileObj = fileEnum.item();
+      try {
+        fileObj = fileEnum.item();
+      } catch (e) {
+        consequentFailuresToEnumDir += 1;
+        if (consequentFailuresToEnumDir > 2) {
+          showErr("Too many consequent failures to enum dir: " + consequentFailuresToEnumDir + " (msg: " + e.message + ", errno: " + e.number + ")");
+        }
+        return false;
+      }
 
       if (fileObj.Name.substring(fileObj.Name.length - 6) !== ".alive") {
         continue;
@@ -137,7 +155,7 @@ if (typeof JmcBots !== "object") {
       // and thus is bad. To cleanup we delete it. 
       goodFile = false;
       try {
-        file = fso.OpenTextFile(fileObj.Path, 2 /* ForWriting */, false /* iocreate */);
+        file = fso.OpenTextFile(fileObj.Path, 2 /* ForWriting */, false /* create */);
       } catch(e) {
         if (e.number === -2146828218) {
           goodFile = true;
@@ -151,8 +169,8 @@ if (typeof JmcBots !== "object") {
         try {
           file.close();
           fso.DeleteFile(fileObj.Path);
-          fso.DeleteFile(fileObj.Path.substring(0, fileObj.Path.length - 6) + ".cmdlock");
-          fso.DeleteFile(fileObj.Path.substring(0, fileObj.Path.length - 6) + ".cmdfile");
+          fso.DeleteFile(fileObj.Path.substring(0, fileObj.Path.length - 6) + ".lock");
+          fso.DeleteFile(fileObj.Path.substring(0, fileObj.Path.length - 6) + ".commands");
         } catch(e) {
           // Hands in the air
         }
@@ -160,7 +178,7 @@ if (typeof JmcBots !== "object") {
       }
 
       try {
-        file = fso.OpenTextFile(fileObj.Path, 1 /* ForWriting */, false /* iocreate */);
+        file = fso.OpenTextFile(fileObj.Path, 1 /* ForWriting */, false /* create */);
         botDataStr = file.readLine();
         file.close();
       } catch(e) {
@@ -174,7 +192,7 @@ if (typeof JmcBots !== "object") {
         continue;
       }
 
-      if (JmcBots.ROLE.MASTER === parseInt(botData[2])) {
+      if (JmcBots.ROLE.MASTER === parseInt(botData[2], 10)) {
         if (meIsMaster) {
           // tell("Found another master bot, I am " + myName + ", he is " + botData[0]);
         } 
@@ -197,7 +215,7 @@ if (typeof JmcBots !== "object") {
     //   if (!botsList[i]) {
     //     for (ii = 0, kk = newBotsList[i].length; ii < kk; ii++) {
     //       tell("Found bot: " + newBotsList[i][ii].join(", "));
-    //       if (JmcBots.ROLE.MASTER === parseInt(newBotsList[i][ii][2])) {
+    //       if (JmcBots.ROLE.MASTER === parseInt(newBotsList[i][ii][2], 10)) {
     //         if (meIsMaster) {
     //           tell("He is also a master like me, " + myName + "!");
     //         } else {
@@ -221,55 +239,73 @@ if (typeof JmcBots !== "object") {
   }
 
   function processCommandFile() {
-    var cmdFileName = "",
-      cmdLockName = "",
-      cmdFile = null,
-      cmdLockFile = null,
+    var commandsFilename = "",
+      commandsFile = null,
+      lockFilename = "",
+      lockFile = null,
       commandsStr = "",
       commands = "",
       command = "", 
       start = 0,
       finish = 0,
+      now = 0,
       processingDuration = 0,
       processToProcessTime = 0;
 
     start = new Date().getTime();
 
-    cmdLockFileName = runPathAbsolute + "\\" + myName + ".cmdlock"; 
+    lockFilename = runPathAbsolute + "\\" + myName + ".lock"; 
     try {
-      cmdLockFile = fso.OpenTextFile(cmdLockFileName, 2 /* ForWriting */, true /* iocreate */);
+      lockFile = fso.OpenTextFile(lockFilename, 2 /* ForWriting */, true /* create */);
     } catch(e) {
-      tell("Caught exception while opening my cmdlock: " + cmdLockFileName + " (msg: " + e.message + ", errno: " + e.number + ")");
+      if (e.number === -2146828218) {
+        consequentFailuresToLockWhenProcessing += 1;
+        if (consequentFailuresToLockWhenProcessing > 2) {
+          tell("Too many consequent failures to lock when processing: " + consequentFailuresToLockWhenProcessing);
+        }
+        return;
+      } else {
+        tell("Caught exception while opening my cmdlock: " + lockFilename + " (msg: " + e.message + ", errno: " + e.number + ")");
+        return;
+      }
       return;
     }
 
-    cmdFileName = runPathAbsolute + "\\" + myName + ".cmdfile"; 
-    jmc.ShowMe(cmdFileName);
+    consequentFailuresToLockWhenProcessing = 0;
+
+    commandsFilename = runPathAbsolute + "\\" + myName + ".commands"; 
     try {
-      cmdFile = fso.OpenTextFile(cmdFileName, 1 /* ForReading */, true /* iocreate */);
-      if (!cmdFile.AtEndOfStream) {
-        commandsStr = cmdFile.ReadAll();
+      commandsFile = fso.OpenTextFile(commandsFilename, 1 /* ForReading */, true /* create */);
+      if (!commandsFile.AtEndOfStream) {
+        commandsStr = commandsFile.ReadAll();
       }
     } catch(e) {
-      tell("Caught exception while reading my cmdfile: " + cmdFileName + " (msg: " + e.message + ", errno: " + e.number + ")");
+      tell("Caught exception while reading my commandsFile: " + commandsFilename + " (msg: " + e.message + ", errno: " + e.number + ")");
       return;
     } finally {
-      cmdFile.close();
-      fso.DeleteFile(cmdFileName);
-      cmdLockFile.close();      
+      commandsFile.close();
+      fso.DeleteFile(commandsFilename);
+      lockFile.close();      
     }
 
     if (commandsStr.length) {
       commandsStr = commandsStr.replace(trimRegex, '');
       commands = commandsStr.split("\n");
       if (commands.length > 1) {
-        tell("Read more than one command: " + commands.length);
+        jmc.ShowMe("Read more than one command: " + commands.length);
       }
 
       var i, k = commands.length;
       for (i = 0; i < k; i++) {
-        tell("Cmd: " + commands[i]);
-        processCommand(commands[i]);
+        command = commands[i].split(",");
+        if (command.length < 3) {
+          tell("Command too short: " + commands[i]);
+          continue;
+        }
+
+        now = new Date().getTime();
+        jmc.ShowMe("From " + command[0] + ": " + command[2] + " (traveled " + (now - command[1]) + "ms)");
+        jmc.Parse(command[2].replace(/\\/, "\\\\"));
       }
     }
 
@@ -282,30 +318,73 @@ if (typeof JmcBots !== "object") {
     lastProcessedTime = finish;
   }
 
-  function processCommand() {
-      // split by , to type, text
-      // swit
-      // NEW_BOT:
-      //   discoverBots()
-      // SEND_TO_MUD:
-      //   Parse    
+  function cmd(botNum, command) {
+    var i, k,
+      lockTriesLeft = 100,
+      lockSuccess = false;
+      lockFilename = "",
+      lockFile = null,
+      commandsFilename = "",
+      commandsFile = null;
+
+    if (!botsList[botNum]) {
+      return false;
+    }
+
+    for (i = 0, k = botsList[botNum].length; i < k; i++) {
+      lockFilename = runPathAbsolute + "\\" + botsList[botNum][i][0] + ".lock";
+      lockSuccess = false;
+      for (lockTriesLeft = 100; lockTriesLeft > 0; lockTriesLeft -= 1) {
+        try {
+          lockFile = fso.OpenTextFile(lockFilename, 2 /* ForWriting */, true /* create */);
+        } catch(e) {
+          if (e.number === -2146828218) {
+            continue;
+          } else {
+            tell("Caught exception while opening lock file to send command: " + lockFilename + " (msg: " + e.message + ", errno: " + e.number + ")");
+            break;
+          }
+        }
+
+        if (!lockFile) {
+          break;
+        }
+
+        lockSuccess = true;
+        break;
+      }
+
+      if (lockTriesLeft === 0 || !lockSuccess) {
+        jmc.ShowMe("Failed to lock file to send command: " + lockFilename + ", tries left " + lockTriesLeft);        
+        continue;
+      } else if (lockTriesLeft < 100) {
+        jmc.ShowMe("Lock tries left: " + lockTriesLeft);
+      }
+
+      commandsFilename = runPathAbsolute + "\\" + botsList[botNum][i][0] + ".commands";
+      try {
+        commandsFile = fso.OpenTextFile(commandsFilename, 8 /* ForWriting */, true /* create */);
+        commandsFile.WriteLine(myName + "," + (new Date().getTime()) + "," + command);
+        jmc.ShowMe("Sent to " + botsList[botNum][i][0] + ": " + command);
+      } catch(e) {
+        tell("Caught exception while writing commands to file: " + commandsFilename + " (msg: " + e.message + ", errno: " + e.number + ")");        
+        continue;
+      } finally {
+        commandsFile.close();
+        lockFile.close();        
+      }
+    }
   }
 
-  function cmd(botNum, cmd) {
-    // foreach handle in handles[botNum]:
-    //   - try to open their lockfile for writing
-    //     - if failed, TELL and retry a lot of times with sleep
-    //       - if still failure - TELL and exit
-    //   - when success, open cmdfile for appending, create ok
-    //     - if failed, TELL!!! and quit (this shouldn't be!)
-    //   - writeLine botname,time,cmd
-    //   - close cmdfile
-    //   - close lockfile
-  }
+  function cmdAll(command) {
+    var i, k;
 
-  function cmdAll(cmd) {
-    // foreach botnums in handles:
-    //   - cmd(botNum, cmd)
+    for (i = 0, k = botsList.length; i < k; i++) {
+      if (!botsList[i]) {
+        continue;
+      }
+      cmd(i, command);
+    }
   }
 
   function tell(msg, finalTell) {
@@ -319,7 +398,7 @@ if (typeof JmcBots !== "object") {
       return;
     }
     inTell = true;
-    cmdAll("#showme " + myNum + ":" + msg + " (" + myName + ")");
+    cmdAll("#showme " + myNum + ": " + msg + " (" + myName + ")");
     inTell = false;
   }
 
@@ -342,11 +421,17 @@ if (typeof JmcBots !== "object") {
   }
 
   function onTimer() {
+    var now;
+
     if (!initialized) {
       return;
     }
 
-    discoverBots();
+    now = new Date().getTime();
+    if (now - lastDiscoveryTime > 5000) {
+      lastDiscoveryTime = now;
+      discoverBots();
+    }
     processCommandFile();
   }
 
