@@ -37,7 +37,8 @@ if (typeof JmcBots !== "object") {
   }
 
   function register(num, role) {
-    var aliveFileCreationTriesLeft = 0;
+    var aliveFileCreationTriesLeft = 0,
+      aliveContent = '';
 
     if (num < 0) {
       tell("Num is less then 0: " + num);
@@ -62,20 +63,27 @@ if (typeof JmcBots !== "object") {
 
       try {
         aliveFile = fso.OpenTextFile(aliveName, 2 /* ForWriting */, true /* iocreate */);
-        } catch(e) {
-        tell("Couldn't create alive file: " + aliveName + " (msg: " + e.message + ", errno: " + e.number + ")");
+      } catch(e) {
+        tell("Caught exception while creating alive file, msg: " + e.message + ", errno: " + e.number);
       }
       if (aliveFile) {
         break;
       }
-      tell("Couldn't create alive file " + aliveName);
+      tell("Couldn't create alive file, probably in use by other bot: " + aliveName);
     }
 
     if (aliveFileCreationTriesLeft < 1) {
       tell("Couldn't create alive file, giving up");
       return false;
     }
-    // Write mode,num there
+
+    aliveContent = botName + "," + botNum + "," + botRole;  
+    try {
+      aliveFile.WriteLine();
+    } catch(e) {
+      tell("Couldn't write info '" + aliveContent + "' to alive file: " + aliveName + " (msg: " + e.message + ", errno: " + e.number + ")");
+      return false;
+    }
 
     findOtherBots();
     initialized = true;
