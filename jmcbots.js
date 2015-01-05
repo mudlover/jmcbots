@@ -47,18 +47,30 @@ if (typeof JmcBots !== "object") {
     return Math.floor(Math.random() * (max - min + 1)) + min;
   }
 
+  function showErr(str) {
+    jmc.ShowMe("ERROR: " + str, "light red");
+  }
+
+  function showWarn(str) {
+    jmc.ShowMe("WARNING: " + str, "yellow");
+  }
+
+  function showInfo(str) {
+    jmc.ShowMe("Info: " + str);
+  }
+
   function register(num, role) {
     var aliveFileCreationTriesLeft = 0,
       aliveContent = '';
 
     if (num < 0) {
-      tell("Num is less then 0: " + num);
+      showErr("Num is less then 0: " + num);
       return false;
     }
     myNum = num;
 
     if (role !== JmcBots.ROLE.MASTER && role !== JmcBots.ROLE.SLAVE) {
-      tell("Role doesn't belong to JmcBots.ROLE set:  " + role);
+      showErr("Role doesn't belong to JmcBots.ROLE set:  " + role);
       return false;
     }
     myRole = role;
@@ -68,7 +80,7 @@ if (typeof JmcBots !== "object") {
     }
 
     if (!fso.FolderExists(JmcBotsConfig.runPath)) {
-      tell("JmcBots run directory doesn't exist: " + JmcBotsConfig.runPath);
+      showErr("JmcBots run directory doesn't exist: " + JmcBotsConfig.runPath);
       return false;
     }
 
@@ -79,16 +91,16 @@ if (typeof JmcBots !== "object") {
       try {
         aliveFile = fso.OpenTextFile(aliveName, 2 /* ForWriting */, true /* create */);
       } catch(e) {
-        tell("Caught exception while creating alive file, msg: " + e.message + ", errno: " + e.number);
+        showErr("Caught exception while creating alive file, msg: " + e.message + ", errno: " + e.number);
       }
       if (aliveFile) {
         break;
       }
-      tell("Couldn't create alive file, probably in use by other bot: " + aliveName);
+      showErr("Couldn't create alive file, probably in use by other bot: " + aliveName);
     }
 
     if (aliveFileCreationTriesLeft < 1) {
-      tell("Couldn't create alive file, giving up");
+      showErr("Couldn't create alive file, giving up");
       return false;
     }
 
@@ -96,7 +108,7 @@ if (typeof JmcBots !== "object") {
     try {
       aliveFile.WriteLine(aliveContent);
     } catch(e) {
-      tell("Couldn't write info '" + aliveContent + "' to alive file: " + aliveName + " (msg: " + e.message + ", errno: " + e.number + ")");
+      showErr("Couldn't write info '" + aliveContent + "' to alive file: " + aliveName + " (msg: " + e.message + ", errno: " + e.number + ")");
       return false;
     }  
 
@@ -106,6 +118,8 @@ if (typeof JmcBots !== "object") {
     } catch(e) {
       // Hands in the air
     }
+
+    showInfo("Registered as " + myName);
 
     discoverBots();
     initialized = true;
@@ -126,7 +140,7 @@ if (typeof JmcBots !== "object") {
     try {
       runDir = fso.getFolder(runPathAbsolute);
     } catch (e) {
-      tell("Couldn't get run dir from fso: " + runPathAbsolute + " (msg: " + e.message + ", errno: " + e.number + ")");
+      showErr("Couldn't get run dir from fso: " + runPathAbsolute + " (msg: " + e.message + ", errno: " + e.number + ")");
     }
 
     fileEnum = new Enumerator(runDir.Files);
@@ -160,12 +174,12 @@ if (typeof JmcBots !== "object") {
         if (e.number === -2146828218) {
           goodFile = true;
         } else {
-          tell("Caught exception while opening other bot's alive file for writing: " + fileObj.Path + " (msg: " + e.message + ", errno: " + e.number + ")");
+          showErr("Caught exception while opening other bot's alive file for writing: " + fileObj.Path + " (msg: " + e.message + ", errno: " + e.number + ")");
         }
       }
 
       if (!goodFile) {
-        tell("Removing left over alive and cmd files: " + fileObj.Path);
+        showInfo("Removing left over alive and cmd files: " + fileObj.Path);
         try {
           file.close();
           fso.DeleteFile(fileObj.Path);
@@ -182,19 +196,19 @@ if (typeof JmcBots !== "object") {
         botDataStr = file.readLine();
         file.close();
       } catch(e) {
-        tell("Caught exception while getting data from other bot's alive file: " + fileObj.Path + " (msg: " + e.message + ", errno: " + e.number + ")");
+        showErr("Caught exception while getting data from other bot's alive file: " + fileObj.Path + " (msg: " + e.message + ", errno: " + e.number + ")");
         continue;
       }
 
       botData = botDataStr.split(",");
       if (botData.length < 3) {
-        tell("Bot data is too short: " + botDataStr);        
+        showErr("Bot data is too short: " + botDataStr);        
         continue;
       }
 
       if (JmcBots.ROLE.MASTER === parseInt(botData[2], 10)) {
         if (meIsMaster) {
-          // tell("Found another master bot, I am " + myName + ", he is " + botData[0]);
+          // showErr("Found another master bot, I am " + myName + ", he is " + botData[0]);
         } 
         masterNum = botData[1];
         masterName = botData[0];
@@ -214,10 +228,10 @@ if (typeof JmcBots !== "object") {
     //   }
     //   if (!botsList[i]) {
     //     for (ii = 0, kk = newBotsList[i].length; ii < kk; ii++) {
-    //       tell("Found bot: " + newBotsList[i][ii].join(", "));
+    //       showErr("Found bot: " + newBotsList[i][ii].join(", "));
     //       if (JmcBots.ROLE.MASTER === parseInt(newBotsList[i][ii][2], 10)) {
     //         if (meIsMaster) {
-    //           tell("He is also a master like me, " + myName + "!");
+    //           showErr("He is also a master like me, " + myName + "!");
     //         } else {
     //           masterNum = newBotsList[i][ii][1];
     //           masterName = newBotsList[i][ii][0];
@@ -230,9 +244,9 @@ if (typeof JmcBots !== "object") {
     // }
 
     if (newBotsList.length > botsList.length) {
-      tell("Found new bots");
+      showInfo("Found new bots");
     } else if (newBotsList.length < botsList.length) { 
-      tell("Lost bots");
+      showWarn("Lost bots");
     }
     
     botsList = newBotsList;
@@ -261,11 +275,11 @@ if (typeof JmcBots !== "object") {
       if (e.number === -2146828218) {
         consequentFailuresToLockWhenProcessing += 1;
         if (consequentFailuresToLockWhenProcessing > 2) {
-          tell("Too many consequent failures to lock when processing: " + consequentFailuresToLockWhenProcessing);
+          showErr("Too many consequent failures to lock when processing: " + consequentFailuresToLockWhenProcessing);
         }
         return;
       } else {
-        tell("Caught exception while opening my cmdlock: " + lockFilename + " (msg: " + e.message + ", errno: " + e.number + ")");
+        showErr("Caught exception while opening my cmdlock: " + lockFilename + " (msg: " + e.message + ", errno: " + e.number + ")");
         return;
       }
       return;
@@ -280,7 +294,7 @@ if (typeof JmcBots !== "object") {
         commandsStr = commandsFile.ReadAll();
       }
     } catch(e) {
-      tell("Caught exception while reading my commandsFile: " + commandsFilename + " (msg: " + e.message + ", errno: " + e.number + ")");
+      showErr("Caught exception while reading my commandsFile: " + commandsFilename + " (msg: " + e.message + ", errno: " + e.number + ")");
       return;
     } finally {
       commandsFile.close();
@@ -299,7 +313,7 @@ if (typeof JmcBots !== "object") {
       for (i = 0; i < k; i++) {
         command = commands[i].split(",");
         if (command.length < 3) {
-          tell("Command too short: " + commands[i]);
+          showErr("Command too short: " + commands[i]);
           continue;
         }
 
@@ -318,7 +332,7 @@ if (typeof JmcBots !== "object") {
     lastProcessedTime = finish;
   }
 
-  function cmd(botNum, command) {
+  function cmd(botNum, command, silent) {
     var i, k,
       lockTriesLeft = 100,
       lockSuccess = false;
@@ -341,7 +355,7 @@ if (typeof JmcBots !== "object") {
           if (e.number === -2146828218) {
             continue;
           } else {
-            tell("Caught exception while opening lock file to send command: " + lockFilename + " (msg: " + e.message + ", errno: " + e.number + ")");
+            showErr("Caught exception while opening lock file to send command: " + lockFilename + " (msg: " + e.message + ", errno: " + e.number + ")");
             break;
           }
         }
@@ -357,7 +371,7 @@ if (typeof JmcBots !== "object") {
       if (lockTriesLeft === 0 || !lockSuccess) {
         jmc.ShowMe("Failed to lock file to send command: " + lockFilename + ", tries left " + lockTriesLeft);        
         continue;
-      } else if (lockTriesLeft < 100) {
+      } else if (lockTriesLeft < 20) {
         jmc.ShowMe("Lock tries left: " + lockTriesLeft);
       }
 
@@ -365,9 +379,12 @@ if (typeof JmcBots !== "object") {
       try {
         commandsFile = fso.OpenTextFile(commandsFilename, 8 /* ForWriting */, true /* create */);
         commandsFile.WriteLine(myName + "," + (new Date().getTime()) + "," + command);
-        jmc.ShowMe("Sent to " + botsList[botNum][i][0] + ": " + command);
+        
+        if (!silent) {
+          jmc.ShowMe("Sent to " + botsList[botNum][i][0] + ": " + command);
+        }
       } catch(e) {
-        tell("Caught exception while writing commands to file: " + commandsFilename + " (msg: " + e.message + ", errno: " + e.number + ")");        
+        showErr("Caught exception while writing commands to file: " + commandsFilename + " (msg: " + e.message + ", errno: " + e.number + ")");        
         continue;
       } finally {
         commandsFile.close();
@@ -376,14 +393,23 @@ if (typeof JmcBots !== "object") {
     }
   }
 
-  function cmdAll(command) {
+  function cmdAll(command, includeSelf) {
     var i, k;
 
     for (i = 0, k = botsList.length; i < k; i++) {
       if (!botsList[i]) {
         continue;
       }
-      cmd(i, command);
+      cmd(i, command, true /* silent */);
+    }
+
+    if (!includeSelf) {
+      jmc.ShowMe("Sent: " + command);
+    }
+
+    if (includeSelf) {
+      // TODO: Deduplicate with processCommandFile func
+      jmc.Parse(command.replace(/\\/, "\\\\"));
     }
   }
 
@@ -406,7 +432,7 @@ if (typeof JmcBots !== "object") {
     var match, botNum;
 
     if (input.substring(0, 4) === "все ") {
-      cmdAll(input.substring(4));
+      cmdAll(input.substring(4), true /* include self */);
       return true;
     } 
 
@@ -440,13 +466,13 @@ if (typeof JmcBots !== "object") {
       try {
         aliveFile.close();
       } catch(e) {
-        tell("Couldn't close alive file: " + aliveName + " (msg: " + e.message + ", errno: " + e.number + ")");
+        showErr("Couldn't close alive file: " + aliveName + " (msg: " + e.message + ", errno: " + e.number + ")");
       }
 
       try {
         rc = fso.DeleteFile(aliveName);
       } catch(e) {
-        tell("Couldn't delete alive file: " + aliveName + " (msg: " + e.message + ", errno: " + e.number + ")");
+        showErr("Couldn't delete alive file: " + aliveName + " (msg: " + e.message + ", errno: " + e.number + ")");
       }
     }
   }
