@@ -317,6 +317,22 @@ if (typeof JmcBots !== "object") {
     }
   }
 
+  function status() {
+    var i, j, k, l;
+    jmc.ShowMe("Bot name: " + myName);
+    jmc.ShowMe("Bot role: " + myRole);
+    jmc.ShowMe("Master name: " + masterName);
+    jmc.ShowMe("Bots list:");
+    for (i = 0, k = botsList.length; i < k; i++) {
+      if (!botsList[i]) {
+        continue;
+      }
+      for (j = 0, l = botsList[i].length; j < l; j++) {
+        jmc.ShowMe("- " + botsList[i][j].join(", "));
+      }
+    }
+  }
+
   // Public interface
 
   JmcBots.register = register;
@@ -326,5 +342,6 @@ if (typeof JmcBots !== "object") {
   JmcBots.onInput = onInput;
   JmcBots.onTimer = onTimer;
   JmcBots.onUnload = onUnload;
+  ImcBots.status = status;
 
 }());
