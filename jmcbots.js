@@ -98,7 +98,7 @@ var characterClasses = {
     jmc.WOutput(JmcBotsConfig.windows.syslog, str);
   }
 
-  function register(num, role, charName, registerHandlers) {
+  function init(num, role, charName, registerHandlers) {
     var aliveFileCreationTriesLeft = 0,
       aliveContent = "";
 
@@ -633,10 +633,7 @@ var characterClasses = {
 
   // Public interface
 
-  JmcBots.register = register;
-  JmcBots.cmd = cmd;
-  JmcBots.cmdAll = cmdAll;
-  JmcBots.tell = tell;
+  JmcBots.init = init;
   JmcBots.processInput = processInput;
   JmcBots.onTimer = onTimer;
   JmcBots.onUnload = onUnload;
