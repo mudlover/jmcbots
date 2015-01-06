@@ -131,7 +131,7 @@ JmcBots = {
     initialized = true;
 
     if (registerHandlers) {
-      jmc.RegisterHandler("Input", "JmcBots.onInput()");
+      jmc.RegisterHandler("Input", "JmcBots.processInput()");
       jmc.RegisterHandler("Unload", "JmcBots.onUnload()");
       jmc.RegisterHandler("Timer", "JmcBots.onTimer()");
       jmc.RegisterHandler("PreTimer", "JmcBots.onTimer()");
@@ -338,7 +338,7 @@ JmcBots = {
         jmc.ShowMe("From " + command[0] + ": " + command[2] + " (traveled " + (now - command[1]) + "ms)");
         
         commandStr = command[2].replace(/\\/, "\\\\");
-        rc = onInput(commandStr);
+        rc = processInput(commandStr);
         if (!rc) {
           jmc.Parse(commandStr);
         }
@@ -352,6 +352,63 @@ JmcBots = {
     jmc.SetStatus(5, commands.length + "c/" + processingDuration + "ms/" + processToProcessTime + "ms");
     // </if>
     lastProcessedTime = finish;
+  }
+
+  function processInput(input) {
+    var match = null, 
+      botNum = 0,
+      botCharname = '',
+      command = '';
+
+    if (!input) {
+      input = jmc.Event;
+    }
+
+    if (input.substring(0, 4) === "все ") {
+      cmdAll(input.substring(4), true /* include self */);
+      jmc.DropEvent();
+      return true;
+    } 
+
+    match = input.match(/^\d[^\d ]/);
+    if (match) {
+      command = input.substring(1);
+
+      botNum = parseInt(input, 10);
+      if (botNum === myNum) {
+        jmc.Parse(command)
+      } else {
+        cmd(botNum, command);
+      }
+
+      jmc.DropEvent();
+      return true;
+    }
+
+    match = input.match(/[^ ]\d+$/);
+    if (match) {
+      botNum = parseInt(input.substring(input.length - 1), 10);
+      if (botNum === 0) {
+        botCharname = myCharname;
+      } else {
+        bot = botsList[botNum];
+        if (bot) {
+          botCharname = bot[0][3];
+        }
+      }
+
+      if (botCharname) {
+        command = input.substring(0, input.length - 1);
+        jmc.Parse(command + " " + botCharname);
+      } else {
+        showWarn("No bot #" + botNum);  
+      }
+
+      jmc.DropEvent();
+      return true;
+    }
+
+    return false;
   }
 
   function cmd(botNum, command, silent) {
@@ -450,58 +507,6 @@ JmcBots = {
     inTell = false;
   }
 
-  function onInput(input) {
-    var match, 
-      botNum,
-      botCharname = '';
-
-    if (!input) {
-      input = jmc.Event;
-    }
-
-    if (input.substring(0, 4) === "все ") {
-      cmdAll(input.substring(4), true /* include self */);
-      jmc.DropEvent();
-      return true;
-    } 
-
-    match = input.match(/^\d[^\d ]/);
-    if (match) {
-      botNum = parseInt(input, 10);
-      if (botNum === myNum) {
-        showWarn("Not sending command to self");
-      } else {
-        cmd(botNum, input.substring(1));
-      }
-      jmc.DropEvent();
-      return true;
-    }
-
-    match = input.match(/[^ ]\d$/);
-    if (match) {
-      botNum = parseInt(input.substring(input.length - 1), 10);
-
-      if (botNum === 0) {
-        botCharname = myCharname;
-      } else {
-        bot = botsList[botNum];
-        if (bot) {
-          botCharname = bot[0][3];        
-        }
-      }
-
-      if (botCharname) {
-        jmc.Parse(input.substring(0, input.length - 1) + " " + botCharname);
-      } else {
-        showWarn("No bot #" + botNum);  
-      }
-      jmc.DropEvent();
-      return true;
-    }
-
-    return false;
-  }
-
   function onTimer() {
     var now;
 
@@ -556,7 +561,7 @@ JmcBots = {
   JmcBots.cmd = cmd;
   JmcBots.cmdAll = cmdAll;
   JmcBots.tell = tell;
-  JmcBots.onInput = onInput;
+  JmcBots.processInput = processInput;
   JmcBots.onTimer = onTimer;
   JmcBots.onUnload = onUnload;
   JmcBots.status = status;
