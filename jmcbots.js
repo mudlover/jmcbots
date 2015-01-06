@@ -167,7 +167,7 @@ var characterClasses = {
     showInfo("I am " + myName + " ([1;32m" + myCharname + "[0m)" + " (" + myRole + ")");
 
     discoverBots();
-    cmdAll("#script JmcBots.discoverBots()");
+    cmdAll(COMMANDS.DISCOVER_BOTS, "discover bots");
     initialized = true;
 
     if (registerHandlers) {
@@ -380,18 +380,34 @@ var characterClasses = {
       var i, k = commands.length;
       for (i = 0; i < k; i++) {
         command = commands[i].split(",");
-        if (command.length < 3) {
+        if (command.length < 4) {
           showErr("Command too short: " + commands[i]);
           continue;
         }
 
         now = new Date().getTime();
-        showInfo("(" + command[0] + ") " + command[2] + " (in " + (now - command[1]) + "ms)");
+        showInfo("(" + command[1] + '|' + command[0] + ") " + command[3] + " (in " + (now - command[2]) + "ms)");
         
-        commandStr = command[2].replace(/\\/, "\\\\");
-        rc = processInput(commandStr);
-        if (!rc) {
-          jmc.Parse(commandStr);
+        switch(parseInt(command[0])) {
+          case COMMANDS.DISCOVER_BOTS:
+            discoverBots(/*force:*/true);
+            break;
+
+          case COMMANDS.BOT_STATUS:
+            saveBotStatus(command[3]);
+            break;
+          
+          case COMMANDS.PARSE:
+            commandStr = command[3].replace(/\\/, "\\\\");
+            rc = processInput(commandStr);
+            if (!rc) {
+              jmc.Parse(commandStr);
+            }
+            break;
+
+          default:
+            showErr("Unknown command type: " + command[0]);
+            break;
         }
       }
     }
@@ -416,7 +432,7 @@ var characterClasses = {
     }
 
     if (input.substring(0, 4) === "все ") {
-      cmdAll(input.substring(4), true /* include self */);
+      cmdAll(COMMANDS.PARSE, input.substring(4), true /* include self */);
       jmc.DropEvent();
       return true;
     } 
@@ -429,7 +445,7 @@ var characterClasses = {
       if (botNum === myNum) {
         jmc.Parse(command)
       } else {
-        cmd(botNum, command);
+        cmd(COMMANDS.PARSE, botNum, command);
       }
 
       jmc.DropEvent();
@@ -474,7 +490,7 @@ var characterClasses = {
 
   }
 
-  function cmd(botNum, command, silent) {
+  function cmd(type, botNum, command, silent) {
     var i, k,
       bot = false,
       lockTriesLeft = 100,
@@ -482,7 +498,8 @@ var characterClasses = {
       lockFilename = "",
       lockFile = null,
       commandsFilename = "",
-      commandsFile = null;
+      commandsFile = null,
+      commandBuf = null;
 
     bot = botsList[botNum];
     if (!bot) {
@@ -521,7 +538,13 @@ var characterClasses = {
     commandsFilename = runPathAbsolute + "\\" + bot[0] + ".commands";
     try {
       commandsFile = fso.OpenTextFile(commandsFilename, 8 /* ForWriting */, true /* create */);
-      commandsFile.WriteLine(myName + "," + (new Date().getTime()) + "," + command);
+      commandBuf = [
+        type,
+        myName,
+        new Date().getTime(),
+        command
+      ];
+      commandsFile.WriteLine(commandBuf.join(","));
       
       if (!silent) {
         showInfo("Sent to " + bot[0] + ": " + command);
@@ -535,15 +558,15 @@ var characterClasses = {
     }
   }
 
-  function cmdAll(command, includeSelf) {
+  function cmdAll(type, command, includeSelf) {
     var i, k;
 
     for (i = 0, k = botsList.length; i < k; i++) {
-      cmd(i, command, /*silent:*/true );
+      cmd(type, i, command, /*silent:*/true );
     }
 
     if (!includeSelf) {
-      showInfo("Sent: " + command);
+      showInfo("Sent: type " + type + ", '" + command + "'");
     }
 
     if (includeSelf) {
@@ -563,7 +586,7 @@ var characterClasses = {
       return;
     }
     inTell = true;
-    cmdAll("#showme " + myNum + ": " + msg + " (" + myName + ")");
+    cmdAll(COMMANDS.PARSE, "#showme " + myNum + ": " + msg + " (" + myName + ")");
     inTell = false;
   }
 
@@ -611,7 +634,6 @@ var characterClasses = {
   // Public interface
 
   JmcBots.register = register;
-  JmcBots.discoverBots = discoverBots;
   JmcBots.cmd = cmd;
   JmcBots.cmdAll = cmdAll;
   JmcBots.tell = tell;
