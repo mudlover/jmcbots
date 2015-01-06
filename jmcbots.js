@@ -1,7 +1,12 @@
 var JmcBotsConfig = {
   // Directory where runtime files will be created, relative to jmc.exe dir
   // Should exist and be writable
-  runPath: "run"
+  runPath: "run",
+  windows: {
+    groupStatus: 0,
+    bots: 2,
+    syslog: 3
+  }
 };
 
 JmcBots = {
@@ -57,6 +62,7 @@ var characterClasses = {
     masterName = "",
     lastProcessedTime = 0,
     lastDiscoveryTime = 0,
+    lastBotsStatusUpdate = 0,
     consequentFailuresToLockWhenProcessing = 0;
     consequentFailuresToEnumDir = 0;
 
@@ -72,15 +78,20 @@ var characterClasses = {
   }
 
   function showErr(str) {
-    jmc.ShowMe("ERROR: " + str, "light red");
+    var msg = "ERROR: " + str;
+    jmc.WOutput(JmcBotsConfig.windows.syslog, msg, "light red");
+    jmc.WOutput(JmcBotsConfig.windows.bots, msg, "light red");
+    jmc.ShowMe(msg, "light red");
   }
 
   function showWarn(str) {
-    jmc.ShowMe("WARNING: " + str, "yellow");
+    var msg = "WARNING: " + str;
+    jmc.WOutput(JmcBotsConfig.windows.syslog, msg, "yellow");
+    jmc.ShowMe(msg, "yellow");
   }
 
   function showInfo(str) {
-    jmc.ShowMe("Info: " + str);
+    jmc.WOutput(JmcBotsConfig.windows.syslog, str);
   }
 
   function register(num, role, charName, registerHandlers) {
@@ -149,7 +160,7 @@ var characterClasses = {
       // Hands in the air
     }
 
-    showInfo("Registered as " + myName + " (" + myCharname + ")" + " (" + myCharname + ")");
+    showInfo("I am " + myName + " ([1;32m" + myCharname + "[0m)" + " (" + myRole + ")");
 
     discoverBots();
     cmdAll("#script JmcBots.discoverBots()");
@@ -167,7 +178,8 @@ var characterClasses = {
   }
 
   function discoverBots() {
-    var newBotsList = [],
+    var now = 0,
+      newBotsList = [],
       runDir = null,
       goodFile = false,
       fileEnum = null,
@@ -176,6 +188,12 @@ var characterClasses = {
       botDataStr = '';
       botData = [],
       botNum = -1;
+
+    now = new Date().getTime();
+    if (now - lastDiscoveryTime < 5000) {
+      return false;
+    }
+    lastDiscoveryTime = now;
 
     try {
       runDir = fso.getFolder(runPathAbsolute);
@@ -249,7 +267,10 @@ var characterClasses = {
       if (JmcBots.ROLE.MASTER === botData[2]) {
         if (meIsMaster) {
           // showErr("Found another master bot, I am " + myName + ", he is " + botData[0]);
-        } 
+        }
+        if (masterNum < 1) {
+          showInfo("My master is [1;35m" + botData[0] + "[0m");
+        }
         masterNum = botData[1];
         masterName = botData[0];
       }
@@ -360,7 +381,7 @@ var characterClasses = {
         }
 
         now = new Date().getTime();
-        jmc.ShowMe("From " + command[0] + ": " + command[2] + " (traveled " + (now - command[1]) + "ms)");
+        showInfo("(" + command[0] + ") " + command[2] + " (in " + (now - command[1]) + "ms)");
         
         commandStr = command[2].replace(/\\/, "\\\\");
         rc = processInput(commandStr);
@@ -436,6 +457,18 @@ var characterClasses = {
     return false;
   }
 
+  function updateBotsStatus {
+    var now = 0,
+      i, k;
+
+    now = new Date().getTime();
+    if (now - lastBotsStatusUpdate < 500) {
+      return false;
+    }
+    lastBotsStatusUpdate = now;
+
+  }
+
   function cmd(botNum, command, silent) {
     var i, k,
       lockTriesLeft = 100,
@@ -485,7 +518,7 @@ var characterClasses = {
         commandsFile.WriteLine(myName + "," + (new Date().getTime()) + "," + command);
         
         if (!silent) {
-          jmc.ShowMe("Sent to " + botsList[botNum][i][0] + ": " + command);
+          showInfo("Sent to " + botsList[botNum][i][0] + ": " + command);
         }
       } catch(e) {
         showErr("Caught exception while writing commands to file: " + commandsFilename + " (msg: " + e.message + ", errno: " + e.number + ")");        
@@ -508,7 +541,7 @@ var characterClasses = {
     }
 
     if (!includeSelf) {
-      jmc.ShowMe("Sent: " + command);
+      showInfo("Sent: " + command);
     }
 
     if (includeSelf) {
@@ -533,17 +566,12 @@ var characterClasses = {
   }
 
   function onTimer() {
-    var now;
-
     if (!initialized) {
       return;
     }
 
-    now = new Date().getTime();
-    if (now - lastDiscoveryTime > 5000) {
-      lastDiscoveryTime = now;
-      discoverBots();
-    }
+    discoverBots();
+    updateBotsStatus();
     processCommandFile();
   }
 
