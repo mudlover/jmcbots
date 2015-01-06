@@ -6,8 +6,8 @@ var JmcBotsConfig = {
 
 JmcBots = {
   ROLE: {
-    MASTER: 1,
-    SLAVE: 2
+    MASTER: "master",
+    SLAVE: "slave"
   }
 };
 
@@ -21,7 +21,7 @@ JmcBots = {
     inTell = false,
     initialized = false,
     myNum = 0,
-    myRole = -1,
+    myRole = "",
     myName = "",
     meIsMaster = false,
     aliveName = "",
@@ -213,7 +213,7 @@ JmcBots = {
         continue;
       }
 
-      if (JmcBots.ROLE.MASTER === parseInt(botData[2], 10)) {
+      if (JmcBots.ROLE.MASTER === botData[2]) {
         if (meIsMaster) {
           // showErr("Found another master bot, I am " + myName + ", he is " + botData[0]);
         } 
@@ -236,7 +236,7 @@ JmcBots = {
     //   if (!botsList[i]) {
     //     for (ii = 0, kk = newBotsList[i].length; ii < kk; ii++) {
     //       showErr("Found bot: " + newBotsList[i][ii].join(", "));
-    //       if (JmcBots.ROLE.MASTER === parseInt(newBotsList[i][ii][2], 10)) {
+    //       if (JmcBots.ROLE.MASTER === newBotsList[i][ii][2]) {
     //         if (meIsMaster) {
     //           showErr("He is also a master like me, " + myName + "!");
     //         } else {
@@ -444,13 +444,15 @@ JmcBots = {
 
     if (input.substring(0, 4) === "все ") {
       cmdAll(input.substring(4), true /* include self */);
+      jmc.DropEvent();
       return true;
     } 
 
-    match = input.match(/^\d+[^\d ]/);
+    match = input.match(/^\d[^\d ]/);
     if (match) {
       botNum = parseInt(match, 10);
-      cmd(botNum, input);
+      cmd(botNum, input.substring(1));
+      jmc.DropEvent();
       return true;
     }
 
