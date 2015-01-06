@@ -9,12 +9,7 @@ var JmcBotsConfig = {
   }
 };
 
-JmcBots = {
-  ROLE: {
-    MASTER: "master",
-    SLAVE: "slave"
-  }
-};
+JmcBots = {};
 
 // TODO: Move to separate file
 var classAliases = {
@@ -43,9 +38,18 @@ var characterClasses = {
 
 (function() {
 
-  // ------ <Init>
+  // <Init>
 
-  var trimRegex = /^[\s\uFEFF\xA0]+|[\s\uFEFF\xA0]+$/g,
+  var COMMANDS = {
+      DISCOVER_BOTS: 1,
+      BOT_STATUS: 2,
+      PARSE: 3
+    },
+    ROLES = {
+      MASTER: "master",
+      SLAVE: "slave"
+    },
+    trimRegex = /^[\s\uFEFF\xA0]+|[\s\uFEFF\xA0]+$/g,
     fso = null,
     runPathAbsolute = "",
     inTell = false,
@@ -104,13 +108,13 @@ var characterClasses = {
     }
     myNum = num;
 
-    if (role !== JmcBots.ROLE.MASTER && role !== JmcBots.ROLE.SLAVE) {
-      showErr("Role doesn't belong to JmcBots.ROLE set:  " + role);
+    if (role !== ROLES.MASTER && role !== ROLES.SLAVE) {
+      showErr("Role doesn't belong to ROLES set:  " + role);
       return false;
     }
     myRole = role;
     
-    if (myRole === JmcBots.ROLE.MASTER) {
+    if (myRole === ROLES.MASTER) {
       meIsMaster = true;
     }
 
@@ -270,7 +274,7 @@ var characterClasses = {
         continue;
       }
 
-      if (JmcBots.ROLE.MASTER === botData[2]) {
+      if (ROLES.MASTER === botData[2]) {
         if (meIsMaster) {
           // showErr("Found another master bot, I am " + myName + ", he is " + botData[0]);
         }
@@ -291,7 +295,7 @@ var characterClasses = {
     //   if (!botsList[i]) {
     //     for (ii = 0, kk = newBotsList[i].length; ii < kk; ii++) {
     //       showErr("Found bot: " + newBotsList[i][ii].join(", "));
-    //       if (JmcBots.ROLE.MASTER === newBotsList[i][ii][2]) {
+    //       if (ROLES.MASTER === newBotsList[i][ii][2]) {
     //         if (meIsMaster) {
     //           showErr("He is also a master like me, " + myName + "!");
     //         } else {
