@@ -62,8 +62,8 @@ JmcBots = {
     var aliveFileCreationTriesLeft = 0,
       aliveContent = '';
 
-    if (num < 0) {
-      showErr("Num is less then 0: " + num);
+    if (num < 1) {
+      showErr("Num should be positive: " + num);
       return false;
     }
     myNum = num;
@@ -451,7 +451,9 @@ JmcBots = {
   }
 
   function onInput(input) {
-    var match, botNum;
+    var match, 
+      botNum,
+      botCharname = '';
 
     if (!input) {
       input = jmc.Event;
@@ -466,7 +468,11 @@ JmcBots = {
     match = input.match(/^\d[^\d ]/);
     if (match) {
       botNum = parseInt(input, 10);
-      cmd(botNum, input.substring(1));
+      if (botNum === myNum) {
+        showWarn("Not sending command to self");
+      } else {
+        cmd(botNum, input.substring(1));
+      }
       jmc.DropEvent();
       return true;
     }
@@ -474,10 +480,18 @@ JmcBots = {
     match = input.match(/[^ ]\d$/);
     if (match) {
       botNum = parseInt(input.substring(input.length - 1), 10);
-      bot = botsList[botNum];
-      if (bot) {
-        botName = bot[0][3];
-        jmc.Parse(input.substring(0, input.length - 1) + " " + botName);
+
+      if (botNum === 0) {
+        botCharname = myCharname;
+      } else {
+        bot = botsList[botNum];
+        if (bot) {
+          botCharname = bot[0][3];        
+        }
+      }
+
+      if (botCharname) {
+        jmc.Parse(input.substring(0, input.length - 1) + " " + botCharname);
       } else {
         showWarn("No bot #" + botNum);  
       }
