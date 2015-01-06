@@ -268,13 +268,15 @@ JmcBots = {
   }
 
   function processCommandFile() {
-    var commandsFilename = "",
+    var rc, 
+      commandsFilename = "",
       commandsFile = null,
       lockFilename = "",
       lockFile = null,
       commandsStr = "",
       commands = "",
-      command = "", 
+      command = "",
+      commandStr = "", 
       start = 0,
       finish = 0,
       now = 0,
@@ -334,7 +336,12 @@ JmcBots = {
 
         now = new Date().getTime();
         jmc.ShowMe("From " + command[0] + ": " + command[2] + " (traveled " + (now - command[1]) + "ms)");
-        jmc.Parse(command[2].replace(/\\/, "\\\\"));
+        
+        commandStr = command[2].replace(/\\/, "\\\\");
+        rc = onInput(commandStr);
+        if (!rc) {
+          jmc.Parse(commandStr);
+        }
       }
     }
 
