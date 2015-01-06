@@ -23,6 +23,7 @@ JmcBots = {
     myNum = 0,
     myRole = "",
     myName = "",
+    myCharname = "",
     meIsMaster = false,
     aliveName = "",
     aliveFile = "",
@@ -57,7 +58,7 @@ JmcBots = {
     jmc.ShowMe("Info: " + str);
   }
 
-  function register(num, role, registerHandlers) {
+  function register(num, role, charName, registerHandlers) {
     var aliveFileCreationTriesLeft = 0,
       aliveContent = '';
 
@@ -76,6 +77,12 @@ JmcBots = {
     if (myRole === JmcBots.ROLE.MASTER) {
       meIsMaster = true;
     }
+
+    if (!charName) {
+      showErr("Charname is not set");
+      return false;      
+    }
+    myCharname = charName;
 
     if (!fso.FolderExists(JmcBotsConfig.runPath)) {
       showErr("JmcBots run directory doesn't exist: " + JmcBotsConfig.runPath);
@@ -102,7 +109,7 @@ JmcBots = {
       return false;
     }
 
-    aliveContent = myName + "," + myNum + "," + myRole;  
+    aliveContent = myName + "," + myNum + "," + myRole + "," + myCharname;  
     try {
       aliveFile.WriteLine(aliveContent);
     } catch(e) {
@@ -117,9 +124,10 @@ JmcBots = {
       // Hands in the air
     }
 
-    showInfo("Registered as " + myName);
+    showInfo("Registered as " + myName + " (" + myCharname + ")" + " (" + myCharname + ")");
 
     discoverBots();
+    cmdAll("#script JmcBots.discoverBots()");
     initialized = true;
 
     if (registerHandlers) {
@@ -208,7 +216,7 @@ JmcBots = {
       }
 
       botData = botDataStr.split(",");
-      if (botData.length < 3) {
+      if (botData.length < 4) {
         showErr("Bot data is too short: " + botDataStr);        
         continue;
       }
@@ -450,8 +458,22 @@ JmcBots = {
 
     match = input.match(/^\d[^\d ]/);
     if (match) {
-      botNum = parseInt(match, 10);
+      botNum = parseInt(input, 10);
       cmd(botNum, input.substring(1));
+      jmc.DropEvent();
+      return true;
+    }
+
+    match = input.match(/[^ ]\d$/);
+    if (match) {
+      botNum = parseInt(input.substring(input.length - 1), 10);
+      bot = botsList[botNum];
+      if (bot) {
+        botName = bot[0][3];
+        jmc.Parse(input.substring(0, input.length - 1) + " " + botName);
+      } else {
+        showWarn("No bot #" + botNum);  
+      }
       jmc.DropEvent();
       return true;
     }
@@ -509,6 +531,7 @@ JmcBots = {
   // Public interface
 
   JmcBots.register = register;
+  JmcBots.discoverBots = discoverBots;
   JmcBots.cmd = cmd;
   JmcBots.cmdAll = cmdAll;
   JmcBots.tell = tell;
