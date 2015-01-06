@@ -11,13 +11,38 @@ JmcBots = {
   }
 };
 
+// TODO: Move to separate file
+var classAliases = {
+  "cleric": {
+
+  },
+  "fighter": {
+    "сби": "сбить %1",
+    "гер": "героический %1",
+    "спас": "спасти %1"
+  }, 
+  "mage": {
+
+  },
+  "archer": {
+
+  }
+};
+
+var characterClasses = {
+  1: "cleric",
+  2: "mage",
+  3: "archer",
+  4: "figher"
+};
+
 (function() {
 
   // ------ <Init>
 
   var trimRegex = /^[\s\uFEFF\xA0]+|[\s\uFEFF\xA0]+$/g,
     fso = null,
-    runPathAbsolute = '',
+    runPathAbsolute = "",
     inTell = false,
     initialized = false,
     myNum = 0,
@@ -29,7 +54,7 @@ JmcBots = {
     aliveFile = "",
     botsList = "",
     masterNum = -1,
-    masterName = '',
+    masterName = "",
     lastProcessedTime = 0,
     lastDiscoveryTime = 0,
     consequentFailuresToLockWhenProcessing = 0;
@@ -60,7 +85,7 @@ JmcBots = {
 
   function register(num, role, charName, registerHandlers) {
     var aliveFileCreationTriesLeft = 0,
-      aliveContent = '';
+      aliveContent = "";
 
     if (num < 1) {
       showErr("Num should be positive: " + num);
