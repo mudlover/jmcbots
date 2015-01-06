@@ -264,6 +264,12 @@ var characterClasses = {
         continue;
       }
 
+      botNum = botData[1];
+      if (newBotsList[botNum]) {
+        showWarn("Skipping conflicting bot #" + botNum + " (" + botData[0] + ")")
+        continue;
+      }
+
       if (JmcBots.ROLE.MASTER === botData[2]) {
         if (meIsMaster) {
           // showErr("Found another master bot, I am " + myName + ", he is " + botData[0]);
@@ -275,12 +281,7 @@ var characterClasses = {
         masterName = botData[0];
       }
 
-      botNum = botData[1];
-      if (!newBotsList[botNum]) {
-        newBotsList[botNum] = [];
-      }
-
-      newBotsList[botNum].push(botData);
+      newBotsList[botNum] = botData;
     }
 
     // for (i = 0, k = newBotsList.length; i < k; i++) {
@@ -304,11 +305,11 @@ var characterClasses = {
     //   }
     // }
 
-    if (newBotsList.length > botsList.length) {
-      showInfo("Found new bots");
-    } else if (newBotsList.length < botsList.length) { 
-      showWarn("Lost bots");
-    }
+    // if (newBotsList.length > botsList.length) {
+    //   showInfo("Found new bots");
+    // } else if (newBotsList.length < botsList.length) { 
+    //   showWarn("Lost bots");
+    // }
     
     botsList = newBotsList;
   }
@@ -439,7 +440,7 @@ var characterClasses = {
       } else {
         bot = botsList[botNum];
         if (bot) {
-          botCharname = bot[0][3];
+          botCharname = bot[3];
         }
       }
 
@@ -457,7 +458,7 @@ var characterClasses = {
     return false;
   }
 
-  function updateBotsStatus {
+  function updateBotsStatus() {
     var now = 0,
       i, k;
 
@@ -471,6 +472,7 @@ var characterClasses = {
 
   function cmd(botNum, command, silent) {
     var i, k,
+      bot = false,
       lockTriesLeft = 100,
       lockSuccess = false;
       lockFilename = "",
@@ -478,55 +480,54 @@ var characterClasses = {
       commandsFilename = "",
       commandsFile = null;
 
-    if (!botsList[botNum]) {
+    bot = botsList[botNum];
+    if (!bot) {
       return false;
     }
 
-    for (i = 0, k = botsList[botNum].length; i < k; i++) {
-      lockFilename = runPathAbsolute + "\\" + botsList[botNum][i][0] + ".lock";
-      lockSuccess = false;
-      for (lockTriesLeft = 100; lockTriesLeft > 0; lockTriesLeft -= 1) {
-        try {
-          lockFile = fso.OpenTextFile(lockFilename, 2 /* ForWriting */, true /* create */);
-        } catch(e) {
-          if (e.number === -2146828218) {
-            continue;
-          } else {
-            showErr("Caught exception while opening lock file to send command: " + lockFilename + " (msg: " + e.message + ", errno: " + e.number + ")");
-            break;
-          }
-        }
-
-        if (!lockFile) {
+    lockFilename = runPathAbsolute + "\\" + bot[0] + ".lock";
+    lockSuccess = false;
+    for (lockTriesLeft = 100; lockTriesLeft > 0; lockTriesLeft -= 1) {
+      try {
+        lockFile = fso.OpenTextFile(lockFilename, 2 /* ForWriting */, true /* create */);
+      } catch(e) {
+        if (e.number === -2146828218) {
+          continue;
+        } else {
+          showErr("Caught exception while opening lock file to send command: " + lockFilename + " (msg: " + e.message + ", errno: " + e.number + ")");
           break;
         }
+      }
 
-        lockSuccess = true;
+      if (!lockFile) {
         break;
       }
 
-      if (lockTriesLeft === 0 || !lockSuccess) {
-        jmc.ShowMe("Failed to lock file to send command: " + lockFilename + ", tries left " + lockTriesLeft);        
-        continue;
-      } else if (lockTriesLeft < 20) {
-        jmc.ShowMe("Lock tries left: " + lockTriesLeft);
-      }
+      lockSuccess = true;
+      break;
+    }
 
-      commandsFilename = runPathAbsolute + "\\" + botsList[botNum][i][0] + ".commands";
-      try {
-        commandsFile = fso.OpenTextFile(commandsFilename, 8 /* ForWriting */, true /* create */);
-        commandsFile.WriteLine(myName + "," + (new Date().getTime()) + "," + command);
-        
-        if (!silent) {
-          showInfo("Sent to " + botsList[botNum][i][0] + ": " + command);
-        }
-      } catch(e) {
-        showErr("Caught exception while writing commands to file: " + commandsFilename + " (msg: " + e.message + ", errno: " + e.number + ")");        
-        continue;
-      } finally {
-        commandsFile.close();
-        lockFile.close();        
+    if (lockTriesLeft === 0 || !lockSuccess) {
+      jmc.ShowMe("Failed to lock file to send command: " + lockFilename + ", tries left " + lockTriesLeft);        
+      return false;
+    } else if (lockTriesLeft < 20) {
+      jmc.ShowMe("Lock tries left: " + lockTriesLeft);
+    }
+
+    commandsFilename = runPathAbsolute + "\\" + bot[0] + ".commands";
+    try {
+      commandsFile = fso.OpenTextFile(commandsFilename, 8 /* ForWriting */, true /* create */);
+      commandsFile.WriteLine(myName + "," + (new Date().getTime()) + "," + command);
+      
+      if (!silent) {
+        showInfo("Sent to " + bot[0] + ": " + command);
       }
+    } catch(e) {
+      showErr("Caught exception while writing commands to file: " + commandsFilename + " (msg: " + e.message + ", errno: " + e.number + ")");        
+      return false;
+    } finally {
+      commandsFile.close();
+      lockFile.close();        
     }
   }
 
@@ -534,10 +535,7 @@ var characterClasses = {
     var i, k;
 
     for (i = 0, k = botsList.length; i < k; i++) {
-      if (!botsList[i]) {
-        continue;
-      }
-      cmd(i, command, true /* silent */);
+      cmd(i, command, /*silent:*/true );
     }
 
     if (!includeSelf) {
@@ -592,18 +590,17 @@ var characterClasses = {
   }
 
   function status() {
-    var i, j, k, l;
+    var i, k;
     jmc.ShowMe("Bot name: " + myName);
     jmc.ShowMe("Bot role: " + myRole);
+    jmc.ShowMe("Character name: " + myCharname);
     jmc.ShowMe("Master name: " + masterName);
     jmc.ShowMe("Bots list:");
     for (i = 0, k = botsList.length; i < k; i++) {
       if (!botsList[i]) {
         continue;
       }
-      for (j = 0, l = botsList[i].length; j < l; j++) {
-        jmc.ShowMe("- " + botsList[i][j].join(", "));
-      }
+      jmc.ShowMe(i + ": " + botsList[i].join(", "));
     }
   }
 
