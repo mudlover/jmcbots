@@ -974,22 +974,21 @@ JmcBots = {};
 
   function displayBotsStatus() {
     _.each(botsStatuses, function(botStatus, botNum) {
-      var statusStr,
-        color;
+      var statusStr = "",
+        color = "";
 
       if (!botStatus) {
         return;
       } 
 
       statusStr = botStatus.health + "/" + botStatus.vitality + " ";
-      color = "";
       if (botStatus.health < 75 || botStatus.vitality < 30) {
-        color = "black, b yellow";
-      } else if (botStatus.health < 30) {
-        color = "bold white, b light red";
+        color = "blue, b yellow";
+      } else if (botStatus.health < 50) {
+        color = "light gray, b light red";
       }
+
       jmc.setStatus(botNum, statusStr, color);
-      statusStr = "";
     });
   }
 
