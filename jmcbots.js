@@ -982,6 +982,14 @@ JmcBots = {};
       } 
 
       statusStr = botStatus.health + "/" + botStatus.vitality + " ";
+      if (botStatus.inFightTanking) {
+        statusStr += "F";
+        color = "blue, b light cyan";
+      } else if (botStatus.inFight) {
+        statusStr += "f";
+        color = "blue, b light cyan";
+      }
+
       if (botStatus.health < 75 || botStatus.vitality < 30) {
         color = "blue, b yellow";
       } else if (botStatus.health < 50) {
