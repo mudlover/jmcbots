@@ -968,8 +968,7 @@ JmcBots = {};
 
   function processBotStatus(botNum, status) {
     botsStatuses[botNum] = status;
-    Character.processPartyMemberStatus(botNum, status);
-    Character.makeDecision();
+    Character.processStatus(botNum, status);
   }
 
   function displayBotsStatus() {
@@ -1292,10 +1291,7 @@ Character = {};
 
   function processStatus(botNum, status) {
     _.extend(partyMembers[botNum], status);
-  }
-
-  function processPartyMemberStatus(botNum, status) {
-    processStatus(botNum, status);
+    makeDecision();
   }
 
   function processIncoming(incoming, incomingRaw) {
@@ -1450,10 +1446,11 @@ jmc.showme("can use battle skill " + battleLagUntil + " " + JSON.stringify(skill
   }
 
   Character.init = init;
+
   Character.setAutoassist = setAutoassist;
   Character.setAutorescue = setAutorescue;
+
   Character.processStatus = processStatus;
-  Character.processPartyMemberStatus = processPartyMemberStatus;
   Character.processIncoming = processIncoming;
   Character.makeDecision = makeDecision;
 
