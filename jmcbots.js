@@ -1133,7 +1133,7 @@ JmcBots = {};
     processInput(command);
   }
 
-  function status() {
+  function showStatus() {
     var i, k;
 
     if (!initialized) {
@@ -1188,7 +1188,7 @@ JmcBots = {};
 
   JmcBots.processInput = processInput;
   JmcBots.parseWithPrompt = parseWithPrompt;
-  JmcBots.status = status;
+  JmcBots.showStatus = showStatus;
   JmcBots.benchmark = benchmark;
 
 }());
