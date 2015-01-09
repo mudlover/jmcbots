@@ -1,3 +1,7 @@
+/* jshint enforceall: true, strict: false, nocomma: false, -W100, -W113, -W027, -W126, unused: vars */
+/* global _: false, ActiveXObject: false, Enumerator: false, jmc: false */
+/* global JmcBots: true, Character: true */
+
 var JmcBotsConfig = {
   // Directory where runtime files will be created, relative to jmc.exe dir
   // Should exist and be writable
