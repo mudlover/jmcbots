@@ -981,12 +981,17 @@ JmcBots = {};
         return;
       } 
 
-      statusStr = botStatus.health + "/" + botStatus.vitality + " ";
+      statusStr = botStatus.health + "/" + botStatus.vitality;
+
+      if (botStatus.memTime) {
+        statusStr += "/" + botStatus.memTime;
+      }
+
       if (botStatus.inFightTanking) {
-        statusStr += "F";
+        statusStr += " F";
         color = "blue, b light cyan";
       } else if (botStatus.inFight) {
-        statusStr += "f";
+        statusStr += " f";
         color = "blue, b light cyan";
       }
 
@@ -1001,6 +1006,12 @@ JmcBots = {};
   }
 
   function structureStatus(statusMatch, characterName) {
+    var memTime = false;
+
+    if (statusMatch[26]) {
+      memTime = statusMatch[26].split(":");
+      memTime = parseInt(memTime[0], 10) * 60 + parseInt(memTime[1], 10);
+    }
     var status = {
       healthColorAnsi: statusMatch[1],
       healthColor: statusMatch[2],
@@ -1024,7 +1035,7 @@ JmcBots = {};
       adversaryStatusColorAnsi: statusMatch[22],
       adversaryStatusColor: statusMatch[23],
       adversaryStatus: statusMatch[24],
-      memTime: statusMatch[26]
+      memTime: memTime
     };
 
     return status;
